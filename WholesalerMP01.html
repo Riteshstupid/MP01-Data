@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Interactive Territory Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    .export-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="export-button" onclick="exportToCsv()">Export to CSV</div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster-src.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    let map = L.map('map').setView([23.19808785, 79.95443967], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+    }).addTo(map);
+
+    let markers = L.markerClusterGroup();
+
+    // Your JSON file URL
+    const JSON_URL = 'https://raw.githubusercontent.com/Riteshstupid/Wholesaler-Data/main/MP01.json';
+
+    axios.get(JSON_URL).then(response => {
+      let outlets = response.data; // Adjust according to the JSON structure provided by the URL
+      outlets.forEach(outlet => {
+        let marker = L.marker([parseFloat(outlet.Latitude), parseFloat(outlet.Longitude)])
+          .bindPopup(`<b>${outlet['Retailer Name']}</b><br>${outlet['City Villg Name']}, ${outlet['Taluk Name']}, ${outlet['Dist Name']}<br>${outlet['State Name']}<br>TSE: ${outlet['TSE Code']}`)
+          .on('click', function () {
+            let newTSE = prompt("Enter new TSE for this outlet:", outlet['TSE Code']);
+            if (newTSE !== null && newTSE !== outlet['TSE Code']) {
+              outlet['TSE Code'] = newTSE; // Update TSE in the data
+              this.bindPopup(`<b>${outlet['Retailer Name']}</b><br>${outlet['City Villg Name']}, ${outlet['Taluk Name']}, ${outlet['Dist Name']}<br>${outlet['State Name']}<br>TSE: ${newTSE}`);
+            }
+          });
+        markers.addLayer(marker);
+      });
+      map.addLayer(markers);
+    }).catch(error => {
+      console.error('Error fetching JSON data:', error);
+    });
+
+    function exportToCsv() {
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Cluster,Region,ASM Code,TSE Code,State Name,Dist Name,Taluk Name,Sector,City Villg Name,Retailer Number,Retailer Name,Address,Pincode,Latitude,Longitude,Coordinates,Google Location Link\n";
+      markers.eachLayer(layer => {
+        let outlet = layer.getPopup().getContent().match(/<b>([^<]*)<\/b><br>([^<]*)<br>([^<]*)<br>([^<]*)<br>TSE: ([^<]*)/).slice(1);
+        csvContent += outlet.join(",") + "\n";
+      });
+
+      let encodedUri = encodeURI(csvContent);
+      let link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "outlets.csv");
+      document.body.appendChild(link); // Required for FF
+      link.click();
+    }
+  </script>
+</body>
+</html>
